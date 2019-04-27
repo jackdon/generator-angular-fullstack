@@ -1,8 +1,13 @@
-<% if (filters.bootstrap) { %>$icon-font-path: "../bower_components/bootstrap-sass-official/vendor/assets/fonts/bootstrap/";
-@import '../bower_components/bootstrap-sass-official/vendor/assets/stylesheets/bootstrap';
-<% if(filters.oauth) { %>@import '../bower_components/bootstrap-social/bootstrap-social.scss';
-<% }} %>$fa-font-path: "../bower_components/font-awesome/fonts";
-@import '../bower_components/font-awesome/scss/font-awesome';
+<%_ if (filters.bootstrap) { _%>
+$icon-font-path: '/assets/fonts/bootstrap/';
+@import '~bootstrap-sass/assets/stylesheets/bootstrap';
+<%_ if(filters.oauth) { _%>
+@import '~bootstrap-social/bootstrap-social.scss';
+<% }} _%>
+$fa-font-path: '/assets/fonts/font-awesome/';
+@import '~font-awesome/scss/font-awesome';
+
+// @import url(http://fonts.googleapis.com/css?family=Open+Sans:300,400,600,900|Roboto:300,500,700,900);
 
 /**
  * App-wide Styles
@@ -20,10 +25,18 @@
   .container {
     max-width: 730px;
   }
+}<% } %>
+
+[hidden] {
+  display: none !important;
 }
-<% } %>
-// Component styles are injected through grunt
-/* inject:scss */
+
+.ng-valid[required], .ng-valid.required  {
+  border-left: 5px solid #42A948; /* green */
+}
+
+.ng-invalid:not(form)  {
+  border-left: 5px solid #a94442; /* red */
+}
+
 @import 'admin/admin.scss';
-@import 'main/main.scss';
-/* endinject */

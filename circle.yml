@@ -1,0 +1,67 @@
+version: 2
+jobs:
+  build:
+    docker:
+     - image: node:8
+     - image: mongo
+       command: [mongod, --smallfiles]
+
+    working_directory: ~/generator-angular-fullstack
+
+    environment:
+      NODE_ENV: test
+
+    branches:
+      ignore:
+        - gh-pages
+
+    steps:
+      - checkout
+      - run: git submodule sync && git submodule update --init
+
+      # Global npm dependencies
+      - restore_cache:
+          keys:
+            - generator-angular-fullstack-npm-global-{{ .Branch }}
+            - generator-angular-fullstack-npm-global-
+      - run: npm install --global gulp-cli
+      - save_cache:
+          key: generator-angular-fullstack-npm-global-{{ .Branch }}
+          paths:
+            - /usr/local/lib/node_modules
+
+      # Generator npm dependencies
+      - restore_cache:
+          keys:
+            - generator-angular-fullstack-npm-{{ .Branch }}-{{ checksum "package.json" }}
+            - generator-angular-fullstack-npm-{{ .Branch }}
+            - generator-angular-fullstack-npm-
+      - run: npm install --quiet
+      - save_cache:
+          key: generator-angular-fullstack-npm-{{ .Branch }}-{{ checksum "package.json" }}
+          paths:
+            - ~/generator-angular-fullstack/node_modules
+
+      # Test fixtures
+      - run: gulp updateFixtures:test
+      - restore_cache:
+          keys:
+            - generator-angular-fullstack-npm-fixtures-{{ .Branch }}-{{ checksum "templates/app/_package.json" }}
+            - generator-angular-fullstack-npm-fixtures-{{ .Branch }}
+            - generator-angular-fullstack-npm-fixtures-
+      - run: gulp installFixtures
+      - save_cache:
+          key: generator-angular-fullstack-npm-fixtures-{{ .Branch }}-{{ checksum "templates/app/_package.json" }}
+          paths:
+            - ~/generator-angular-fullstack/test/fixtures/node_modules
+
+      - run: gulp build
+      - run: npm test
+
+      - deploy:
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              git config --global user.email "circleci@circleci.com"
+              git config --global user.name "CircleCI"
+              cd docs && npm install && npm run build && npm run deploy
+            fi

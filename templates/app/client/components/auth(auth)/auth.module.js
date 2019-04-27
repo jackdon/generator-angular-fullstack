@@ -1,12 +1,15 @@
 'use strict';
 
-angular.module('<%= scriptAppName %>.auth', [
-  '<%= scriptAppName %>.constants',
-  '<%= scriptAppName %>.util',
-  'ngCookies'<% if (filters.ngroute) { %>,
-  'ngRoute'<% } if (filters.uirouter) { %>,
-  'ui.router'<% } %>
-])
-  .config(function($httpProvider) {
-    $httpProvider.interceptors.push('authInterceptor');
-  });
+import { NgModule } from '@angular/core';
+import { AuthService } from './auth.service';
+import { UserService } from './user.service';
+import { AuthGuard } from '../../components/auth/auth-guard.service';
+
+@NgModule({
+    providers: [
+        AuthService,
+        UserService,
+        AuthGuard,
+    ]
+})
+export class AuthModule {}

@@ -1,3 +1,32 @@
+const mapping = {
+  stylesheet: {
+    sass: 'scss',
+    stylus: 'styl',
+    less: 'less',
+    css: 'css'
+  },
+  markup: {
+    pug: 'pug',
+    html: 'html'
+  },
+  script: {
+    js: 'js',
+    ts: 'ts'
+  }
+};
+
+/**
+ * Generate an array of OAuth files based on type
+ *
+ * @param  {String} type - type of oauth
+ * @return {Array}       - array of files
+ *
+ */
+var oauthFiles = type => ([
+  `server/auth/${type}/index.js`,
+  `server/auth/${type}/passport.js`,
+]);
+
 /**
  * Generate an array of files to expect from a set of options
  *
@@ -6,68 +35,37 @@
  *
  */
 export function app(options) {
-  var mapping = {
-    stylesheet: {
-      sass: 'scss',
-      stylus: 'styl',
-      less: 'less',
-      css: 'css'
-    },
-    markup: {
-      jade: 'jade',
-      html: 'html'
-    },
-    script: {
-      js: 'js',
-      ts: 'ts'
-    }
-  },
-  files = [];
-
-  /**
-   * Generate an array of OAuth files based on type
-   *
-   * @param  {String} type - type of oauth
-   * @return {Array}       - array of files
-   *
-   */
-  var oauthFiles = function(type) {
-    return [
-      'server/auth/' + type + '/index.js',
-      'server/auth/' + type + '/passport.js',
-    ];
-  };
-
-
-  var script = mapping.script[options.transpiler === 'ts' ? 'ts' : 'js'],
-      markup = mapping.markup[options.markup],
-      stylesheet = mapping.stylesheet[options.stylesheet],
-      models = options.models ? options.models : options.odms[0];
+  let script = mapping.script[options.transpiler === 'ts' ? 'ts' : 'js'];
+  let markup = mapping.markup[options.markup];
+  let stylesheet = mapping.stylesheet[options.stylesheet];
+  let models = options.models ? options.models : options.odms[0];
 
   /* Core Files */
-  files = files.concat([
-    'client/.htaccess',
+  let files = [
     'client/favicon.ico',
     'client/robots.txt',
-    'client/index.html',
+    'client/app.template.html',
     'client/app/app.' + script,
+    'client/app/app.component.' + script,
+    'client/app/app.constants.' + script,
+    'client/app/app.module.' + script,
     'client/app/app.' + stylesheet,
-    'client/app/main/main.' + script,
+    `client/app/polyfills.${script}`,
+    'client/app/main/main.component.' + script,
+    'client/app/main/main.component.spec.' + script,
+    'client/app/main/main.module.' + script,
     'client/app/main/main.' + markup,
     'client/app/main/main.' + stylesheet,
-    'client/app/main/main.controller.' + script,
-    'client/app/main/main.controller.spec.' + script,
     'client/assets/images/yeoman.png',
+    'client/components/directives.module.' + script,
+    'client/components/util.' + script,
+    'client/components/util.spec.' + script,
     'client/components/footer/footer.' + stylesheet,
     'client/components/footer/footer.' + markup,
-    'client/components/footer/footer.directive.' + script,
+    'client/components/footer/footer.component.' + script,
     'client/components/navbar/navbar.' + markup,
-    'client/components/navbar/navbar.controller.' + script,
-    'client/components/navbar/navbar.directive.' + script,
-    'client/components/util/util.module.' + script,
-    'client/components/util/util.service.' + script,
-    'server/.jshintrc',
-    'server/.jshintrc-spec',
+    'client/components/navbar/navbar.component.' + script,
+    'server/.eslintrc',
     'server/app.js',
     'server/index.js',
     'server/routes.js',
@@ -85,56 +83,51 @@ export function app(options) {
     'server/config/environment/test.js',
     'server/config/environment/shared.js',
     'server/views/404.' + markup,
+    'e2e/.eslintrc',
     'e2e/main/main.po.js',
     'e2e/main/main.spec.js',
     'e2e/components/navbar/navbar.po.js',
     '.babelrc',
-    '.bowerrc',
     '.buildignore',
     '.editorconfig',
+    '.eslintignore',
+    '.eslintrc',
     '.gitattributes',
     '.gitignore',
     '.travis.yml',
-    '.jscsrc',
     '.yo-rc.json',
-    'Gruntfile.js',
+    'gulpfile.babel.js',
     'package.json',
-    'bower.json',
     'karma.conf.js',
     'mocha.conf.js',
+    'mocha.global.js',
+    'postcss.config.js',
     'protractor.conf.js',
-    'README.md'
-  ]);
+    'README.md',
+    'spec.js',
+    'webpack.build.js',
+    'webpack.dev.js',
+    'webpack.make.js',
+    'webpack.test.js',
+    'webpack.server.js'
+  ];
 
   /* TypeScript */
   if (options.transpiler === 'ts') {
     files = files.concat([
       'tsconfig.client.test.json',
-      'tsconfig.client.json',
-      'tsd.json',
-      'tsd_test.json',
+      'tsconfig.json',
       'client/tslint.json'
     ]);
   } else {
     files = files.concat([
-      'client/.jshintrc'
+      'client/.eslintrc'
     ]);
   }
 
-  /* Ui-Router */
-  if (options.router === 'uirouter') {
-    files = files.concat([
-      'client/components/ui-router/ui-router.mock.' + script
-    ]);
-  }
-
-  /* Ui-Bootstrap */
-  if (options.uibootstrap) {
-    files = files.concat([
-      'client/components/modal/modal.' + markup,
-      'client/components/modal/modal.' + stylesheet,
-      'client/components/modal/modal.service.' + script
-    ]);
+  /* Flow */
+  if(options.flow) {
+    files.push('.flowconfig');
   }
 
   /* Models - Mongoose or Sequelize */
@@ -156,24 +149,21 @@ export function app(options) {
   /* Authentication */
   if (options.auth) {
     files = files.concat([
-      'client/app/account/account.' + script,
+      'client/app/account/account.module.' + script,
       'client/app/account/login/login.' + markup,
-      'client/app/account/login/login.controller.' + script,
+      'client/app/account/login/login.component.' + script,
       'client/app/account/settings/settings.' + markup,
-      'client/app/account/settings/settings.controller.' + script,
+      'client/app/account/settings/settings.component.' + script,
       'client/app/account/signup/signup.' + markup,
-      'client/app/account/signup/signup.controller.' + script,
+      'client/app/account/signup/signup.component.' + script,
       'client/app/admin/admin.' + markup,
       'client/app/admin/admin.' + stylesheet,
+      'client/app/admin/admin.component.' + script,
       'client/app/admin/admin.module.' + script,
-      'client/app/admin/admin.router.' + script,
-      'client/app/admin/admin.controller.' + script,
       'client/components/auth/auth.module.' + script,
       'client/components/auth/auth.service.' + script,
-      'client/components/auth/interceptor.service.' + script,
-      'client/components/auth/router.decorator.' + script,
+      'client/components/auth/auth-guard.service.' + script,
       'client/components/auth/user.service.' + script,
-      'client/components/mongoose-error/mongoose-error.directive.' + script,
       'server/api/user/index.js',
       'server/api/user/index.spec.js',
       'server/api/user/user.controller.js',
@@ -195,7 +185,7 @@ export function app(options) {
 
   if (options.oauth && options.oauth.length) {
     /* OAuth (see oauthFiles function above) */
-    options.oauth.forEach(function(type, i) {
+    options.oauth.forEach(type => {
       files = files.concat(oauthFiles(type.replace('Auth', '')));
     });
 
@@ -203,21 +193,20 @@ export function app(options) {
     files = files.concat([
       'client/components/oauth-buttons/oauth-buttons.' + stylesheet,
       'client/components/oauth-buttons/oauth-buttons.' + markup,
-      'client/components/oauth-buttons/oauth-buttons.controller.' + script,
-      'client/components/oauth-buttons/oauth-buttons.controller.spec.' + script,
-      'client/components/oauth-buttons/oauth-buttons.directive.' + script,
-      'client/components/oauth-buttons/oauth-buttons.directive.spec.' + script,
+      'client/components/oauth-buttons/oauth-buttons.component.' + script,
+      'client/components/oauth-buttons/oauth-buttons.component.spec.' + script,
       'e2e/components/oauth-buttons/oauth-buttons.po.js'
     ]);
   }
 
-  /* Socket.IO */
-  if (options.socketio) {
+  /* WebSockets */
+  if (options.ws) {
     files = files.concat([
+      'client/components/socket/primus.mock.' + script,
       'client/components/socket/socket.service.' + script,
       'client/components/socket/socket.mock.' + script,
       'server/api/thing/thing.socket.js',
-      'server/config/socketio.js'
+      'server/config/websockets.js'
     ]);
   }
 

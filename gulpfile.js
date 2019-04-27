@@ -15,6 +15,8 @@ const lazypipe = require('lazypipe');
 const runSequence = require('run-sequence');
 const merge = require('merge-stream');
 const shell = require('shelljs');
+const ghPages = require('gulp-gh-pages');
+const conventionalChangelog = require('gulp-conventional-changelog');
 
 var watching = false;
 
@@ -23,19 +25,18 @@ const mocha = lazypipe()
         reporter: 'spec',
         timeout: 120000,
         slow: 500,
-        globals: {
-            should: require('should')
-        },
         require: [
-            './mocha.conf'
-        ]
+            './mocha.conf',
+            'should'
+        ],
+        compilers: ['js:babel-core/register']
     });
 
 const transpile = lazypipe()
     .pipe(babel);
 
 gulp.task('clean', () => {
-    return del(['generators/**/*', './test/(**|!fixtures/node_modules|!fixtures/bower_components)/*']);
+    return del(['generators/**/*', './test/(**|!fixtures/node_modules)/*']);
 });
 
 gulp.task('babel', () => {
@@ -84,6 +85,11 @@ var processJson = function(src, dest, opt) {
 
             var json = JSON.parse(data.replace(/<%(.*)%>/g, ''));
 
+            if(/package.json/g.test(src) && opt.test) {
+                delete json.scripts.postinstall;
+                json.scripts['update-webdriver'] = 'node node_modules/gulp-protractor-runner/node_modules/protractor/bin/webdriver-manager update || node node_modules/protractor/bin/webdriver-manager update';
+            }
+
             // set properties
             json.name = opt.appName;
             json.description = opt.private
@@ -103,14 +109,12 @@ var processJson = function(src, dest, opt) {
 
 function updateFixtures(target) {
     const deps = target === 'deps';
+    const test = target === 'test';
     const genVer = require('./package.json').version;
     const dest = __dirname + (deps ? '/angular-fullstack-deps/' : '/test/fixtures/');
     const appName = deps ? 'angular-fullstack-deps' : 'tempApp';
 
-    return Promise.all([
-        processJson('templates/app/_package.json', dest + 'package.json', {appName, genVer, private: !deps}),
-        processJson('templates/app/_bower.json', dest + 'bower.json', {appName, genVer, private: !deps})
-    ]);
+    return processJson('templates/app/_package.json', dest + 'package.json', {appName, genVer, private: !deps, test: test});
 }
 
 gulp.task('updateFixtures', cb => {
@@ -137,16 +141,22 @@ function execAsync(cmd, opt) {
 }
 
 gulp.task('installFixtures', function() {
-    gutil.log('installing npm & bower dependencies for generated app');
+    gutil.log('installing npm dependencies for generated app');
     let progress = setInterval(() => {
         process.stdout.write('.');
     }, 1 * 1000);
     shell.cd('test/fixtures');
 
-    return Promise.all([
-        execAsync('npm install --quiet', {cwd: '../fixtures'}),
-        execAsync('bower install', {cwd: '../fixtures'})
-    ]).then(() => {
+    let installCommand;
+    if(process.platform === 'win32') {
+        installCommand = 'yarn --version >nul 2>&1 && ( yarn install ) || ( npm install --quiet )';
+    } else {
+        installCommand = 'type yarn &> /dev/null | yarn install || npm install --quiet';
+    }
+
+    execAsync(installCommand, {
+        cwd: '../fixtures'
+    }).then(() => {
         process.stdout.write('\n');
         if(!process.env.SAUCE_USERNAME) {
             gutil.log('running npm run-script update-webdriver');
@@ -167,4 +177,83 @@ gulp.task('installFixtures', function() {
 gulp.task('test', () => {
     return gulp.src(['test/pre.test.js', 'test/*.test.js'])
         .pipe(mocha());
+});
+
+gulp.task('updateSubmodules', () => console.log('TODO'));
+gulp.task('changelog', () => console.log('TODO'));
+gulp.task('generateDemo', () => console.log('TODO'));
+gulp.task('demo', () => console.log('TODO')); // ['clean:demo', 'generateDemo']
+gulp.task('releaseDemo', () => console.log('TODO')); //['demo', 'releaseDemoBuild', 'buildcontrol:release']
+gulp.task('releaseDemoBuild', () => console.log('TODO'));
+gulp.task('deps', () => console.log('TODO')); // updateFixtures, david
+gulp.task('release', () => console.log('TODO'));
+gulp.task('lint', () => console.log('TODO')); // ['gulpfile.js', 'src/**/*.js']
+
+gulp.task('copy_docs_images', () => {
+  return gulp.src('./media/svg/*')
+    .pipe(gulp.dest('./static/'));
+});
+gulp.task('gh-pages', () => {
+  return gulp.src('./static/**/*')
+    .pipe(ghPages());
+});
+gulp.task('docs', cb => {
+    return runSequence('daux', 'copy_docs_images', 'gh-pages', cb);
+});
+
+let finalizeContext = function(context, writerOpts, commits, keyCommit) {
+    var gitSemverTags = context.gitSemverTags;
+    var commitGroups = context.commitGroups;
+
+    if((!context.currentTag || !context.previousTag) && keyCommit) {
+        var match = /tag:\s*(.+?)[,\)]/gi.exec(keyCommit.gitTags);
+        var currentTag = context.currentTag = context.currentTag || match ? match[1] : null;
+        var index = gitSemverTags.indexOf(currentTag);
+        var previousTag = context.previousTag = gitSemverTags[index + 1];
+
+        if(!previousTag) {
+            if(options.append) {
+              context.previousTag = context.previousTag || commits[0] ? commits[0].hash : null;
+            } else {
+              context.previousTag = context.previousTag || commits[commits.length - 1] ? commits[commits.length - 1].hash : null;
+            }
+        }
+    } else {
+        context.previousTag = context.previousTag || gitSemverTags[0];
+        context.currentTag = context.currentTag || 'v' + context.version;
+    }
+
+    if(typeof context.linkCompare !== 'boolean' && context.previousTag && context.currentTag) {
+        context.linkCompare = true;
+    }
+
+    if(Array.isArray(commitGroups)) {
+        for(var i = 0, commitGroupsLength = commitGroups.length; i < commitGroupsLength; i++) {
+            var commits = commitGroups[i].commits;
+            if(Array.isArray(commits)) {
+                for(var n = 1, commitsLength = commits.length; n < commitsLength; n++) {
+                    var commit = commits[n], prevCommit = commits[n - 1];
+                    if(commit.scope && commit.scope === prevCommit.scope) {
+                        commit.subScope = true;
+                        if(prevCommit.scope && !prevCommit.subScope) {
+                            prevCommit.leadScope = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return context;
+};
+let commitPartial = fs.readFileSync(path.resolve(__dirname, 'task-utils/changelog-templates/commit.hbs')).toString();
+
+gulp.task('changelog', () => {
+  return gulp.src('CHANGELOG.md', {buffer: false})
+    .pipe(conventionalChangelog({
+      preset: 'angular'
+    }, {/*context*/}, {/*git-raw-commits*/}, {/*conventional-commits-parser*/}, {/*conventional-changelog-writer*/
+        finalizeContext,
+        commitPartial
+    }))
+    .pipe(gulp.dest('./'));
 });
